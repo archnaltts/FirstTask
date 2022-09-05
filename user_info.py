@@ -11,6 +11,9 @@ app = Flask(__name__)
 SECRET_KEY = '\x9f\xb0\xb5\x1c\x81(V\x9f\x00\xc0\xba\x1b\x16Y\xc5\x16\xc8;\xe5\xe8\xca\xaeJk'
 app.config['SECRET_KEY'] = SECRET_KEY
 
+JWT_SECRET = SECRET_KEY
+JWT_ALGORITHM = "HS256"
+
 @app.route('/')
 def hello_app():
     return 'Hello'
@@ -35,15 +38,13 @@ def add_user():
                 "error": "Conflict",
                 "data": None
             }, 409
-        token = jwt.encode(
-            {"user_id": json.loads(dumps(user))},
-            app.config["SECRET_KEY"],
-            algorithm="HS256"
-        )
+        payload = {
+            'user_id': user["_id"]}
+        jwt_token = jwt.encode(payload, JWT_SECRET, JWT_ALGORITHM)
         return {
             "message": "Successfully created new user and fetched auth token for current user",
             "user": json.loads(dumps(user)),
-            "token" : json.loads(dumps(token))
+            "token" : jwt_token.decode('utf-8')
                 }, 201
     except Exception as e:
         return {
@@ -70,6 +71,16 @@ def users_by_id(id):
         "data": response
     })
 
+
+@app.route('/api/v1/usertoken/<token>')
+def users_by_token(token):
+    id_from_token = jwt.decode(token,verify=False)
+    user = User().get_by_id(id_from_token['user_id'])
+    response = dumps(user)
+    return jsonify({
+        "message": "successfully retrieved user profile",
+        "data": response
+    })
 
 @app.route('/api/v1/delete/<id>')
 def user_delete(id):
