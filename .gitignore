@@ -1,0 +1,7 @@
+venv
+env
+.env
+*.pyc
+static/images/
+init-db.js
+dump.rdb

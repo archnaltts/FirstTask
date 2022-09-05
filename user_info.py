@@ -1,70 +1,115 @@
+import json
+import jwt
 from flask import Flask
-from flask_pymongo import PyMongo
 from bson.json_util import dumps
-from bson.objectid import ObjectId #used to generate random string id
-
-from flask import  jsonify, request
+from flask import  jsonify, request, make_response
+from models import User
+from validate import validate_user
 
 app = Flask(__name__)
 
-app.config['MONGO_URI'] = 'mongodb://localhost:27017/users'
+SECRET_KEY = '\x9f\xb0\xb5\x1c\x81(V\x9f\x00\xc0\xba\x1b\x16Y\xc5\x16\xc8;\xe5\xe8\xca\xaeJk'
+app.config['SECRET_KEY'] = SECRET_KEY
 
-mongo = PyMongo(app)
+@app.route('/')
+def hello_app():
+    return 'Hello'
 
-@app.route('/add', methods=['POST'])
+@app.route("/api/v1/addusers/", methods=["POST"])
 def add_user():
-    __json = request.json
-    _name = __json['name']
-    _age = __json['age']
-    _gender = __json['gender']
-    _email = __json['email']
+    try:
+        user = request.json
+        if not user:
+            return {
+                "message": "Please provide user details",
+                "data": None,
+                "error": "Bad request"
+            }, 400
+        is_validated = validate_user(**user)
+        if is_validated is not True:
+            return dict(message='Invalid data', data=None, error=is_validated), 400
+        user = User().create(**user)
+        if not user:
+            return {
+                "message": "User already exists",
+                "error": "Conflict",
+                "data": None
+            }, 409
+        token = jwt.encode(
+            {"user_id": json.loads(dumps(user))},
+            app.config["SECRET_KEY"],
+            algorithm="HS256"
+        )
+        return {
+            "message": "Successfully created new user and fetched auth token for current user",
+            "user": json.loads(dumps(user)),
+            "token" : json.loads(dumps(token))
+                }, 201
+    except Exception as e:
+        return {
+               "message": "Something went wrong!",
+               "error": str(e),
+               "data": None
+               }, 500
 
-    if _name and _age and _gender and _email and request.method == 'POST':
-        id = mongo.db.user_data.insert({'name':_name, 'age':_age, 'gender':_gender, 'email':_email})
-        responce = jsonify('User Added Successfully')
-        responce.status_code = 200
-        return responce
-
-    else:
-        return not_found()
-
-@app.route('/users')
+@app.route('/api/v1/users')
 def users():
-    users = mongo.db.user_data.find()
-    responce = dumps(users)
-    return responce
+    users = User().get_all()
+    response = dumps(users)
+    return jsonify({
+        "message": "successfully retrieved all users profile",
+        "data": response
+    })
 
-@app.route('/user/<id>')
-def user_byid(id):
-    user = mongo.db.user_data.find_one({'_id' : ObjectId(id)})
-    responce = dumps(user)
-    return responce
+@app.route('/api/v1/user/<id>')
+def users_by_id(id):
+    user = User().get_by_id(id)
+    response = dumps(user)
+    return jsonify({
+        "message": "successfully retrieved user profile",
+        "data": response
+    })
 
-@app.route('/delete/<id>')
+
+@app.route('/api/v1/delete/<id>')
 def user_delete(id):
-    mongo.db.user_data.delete_one({'_id' : ObjectId(id)})
-    responce = jsonify("User Deleted Successfully")
-    responce.status_code = 200
-    return responce
-
-
-@app.route('/update/<id>', methods=['PUT'])
-def update_user(id):
-    _id = id
-    __json = request.json
-    _name = __json['name']
-    _age = __json['age']
-    _gender = __json['gender']
-    _email = __json['email']
-
-    if _name and _age and _gender and _email and request.method == 'PUT':
-        mongo.db.user_data.update_one({'_id': ObjectId(_id['$oid']) if '$oid' in _id else ObjectId(_id)},{'$set':{'name':_name, 'age':_age, 'gender':_gender, 'email':_email}})
-        responce = jsonify('User Updated Successfully')
-        responce.status_code = 200
-        return responce
-
+    user = User().get_by_id(id)
+    if user:
+        User().delete(id)
+        return jsonify({
+            "message": "User Deleted Successfully",
+        })
     else:
-        return not_found()
+        return jsonify({
+            "message": "User Not Exist or May be deleted",
+        })
+
+@app.route('/api/v1/update/<id>', methods=['PUT'])
+def update_user(id):
+    try:
+        user = request.json
+
+        is_validated = validate_user(**user)
+        if is_validated is not True:
+            return dict(message='Invalid data', data=None, error=is_validated), 400
+
+        if user.get("name") and user.get("email") and user.get("age") and user.get("dob") and user.get("phone") :
+            user = User().update(id, user["name"], user["email"], user["age"], user["dob"], user["phone"])
+            return jsonify({
+                "message": "successfully updated account",
+                "data": user
+            }), 201
+        return {
+            "message": "Invalid data",
+            "data": None,
+            "error": "Bad Request"
+        }, 400
+    except Exception as e:
+        return jsonify({
+            "message": "failed to update account",
+            "error": str(e),
+            "data": None
+        }), 400
 
 @app.errorhandler(404)
 def not_found(error=None):
@@ -78,4 +123,4 @@ def not_found(error=None):
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+	app.run(debug=True, host='0.0.0.0')
