@@ -5,6 +5,9 @@ from bson.json_util import dumps
 from flask import  jsonify, request, make_response
 from models import User
 from validate import validate_user
+from redis_client import RedisClient
+
+redis_users = RedisClient(host='redis', port=6379, db=0)
 
 app = Flask(__name__)
 
@@ -20,7 +23,7 @@ def hello_app():
 
 @app.route("/api/v1/addusers/", methods=["POST"])
 def add_user():
-    try:
+    # try:
         user = request.json
         if not user:
             return {
@@ -46,12 +49,12 @@ def add_user():
             "user": json.loads(dumps(user)),
             "token" : jwt_token.decode('utf-8')
                 }, 201
-    except Exception as e:
-        return {
-               "message": "Something went wrong!",
-               "error": str(e),
-               "data": None
-               }, 500
+    # except Exception as e:
+    #     return {
+    #            "message": "Something went wrong!",
+    #            "error": str(e),
+    #            "data": None
+    #            }, 500
 
 @app.route('/api/v1/users')
 def users():
@@ -74,8 +77,10 @@ def users_by_id(id):
 
 @app.route('/api/v1/usertoken/<token>')
 def users_by_token(token):
-    id_from_token = jwt.decode(token,verify=False)
-    user = User().get_by_id(id_from_token['user_id'])
+    id_from_token = jwt.decode(token, verify=False)
+    redis_users.set_dict('user_token', id_from_token)
+    data_from_redis = redis_users.get_dict('user_token')
+    user = User().get_by_id(data_from_redis['user_id'])
     response = dumps(user)
     return jsonify({
         "message": "successfully retrieved user profile",

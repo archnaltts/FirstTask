@@ -6,13 +6,6 @@ from pymongo import MongoClient
 from bson.json_util import dumps
 
 db = MongoClient('mongodb://mongo/new_users').db
-# print("dbbbbbbbbbbbbbbbbbbbbbbbbbbbbb : ",db.newusers.find())
-# client = MongoClient('localhost', 27017)
-# db = client.new_users
-# DATABASE_URL=os.environ.get('DATABASE_URL') or 'mongodb://localhost:27017/new_users'
-# print(DATABASE_URL)
-# client = MongoClient(DATABASE_URL)
-# db = client.new_users
 
 class User:
     """User Model"""
@@ -22,7 +15,6 @@ class User:
     def create(self, name="", email="", age="", dob="", phone=""):
         """Create a new user"""
         user = self.get_by_email(email)
-        print("user here in create : ",user)
         if user:
             return
         elif name and email:

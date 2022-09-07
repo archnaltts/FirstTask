@@ -6,5 +6,15 @@ services:
       - "5000:5000"
     depends_on:
       - "mongo"
+      - "redis"
+
   mongo:
     image: "mongo:4.4"
+  redis:
+    image: redislabs/redismod
+    ports:
+      - '6379:6379'
+  redisinsight:
+    image: redislabs/redisinsight:latest
+    ports:
+      - '8000:8000'
